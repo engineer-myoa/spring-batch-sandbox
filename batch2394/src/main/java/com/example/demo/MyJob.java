@@ -26,13 +26,14 @@ import org.springframework.batch.core.configuration.annotation.StepBuilderFactor
 import org.springframework.batch.core.launch.support.RunIdIncrementer;
 import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.item.database.JdbcPagingItemReader;
-import org.springframework.batch.item.database.support.SqlPagingQueryProviderFactoryBean;
-import org.springframework.batch.support.DatabaseType;
+import org.springframework.batch.item.database.PagingQueryProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.ImportResource;
 
 @Configuration
 @EnableBatchProcessing
+@ImportResource(locations = {"classpath:queryprovider.xml"})
 public class MyJob {
 
 	private final JobBuilderFactory jobs;
@@ -45,23 +46,16 @@ public class MyJob {
 	}
 
 	@Bean
-	public JdbcPagingItemReader<Person> itemReader(DataSource dataSource) throws Exception {
+	public JdbcPagingItemReader<Person> itemReader(DataSource dataSource, PagingQueryProvider pagingQueryProvider) throws Exception {
 		JdbcPagingItemReader<Person> reader = new JdbcPagingItemReader<>();
 		reader.setDataSource(dataSource);
-		SqlPagingQueryProviderFactoryBean factoryBean = new SqlPagingQueryProviderFactoryBean();
-		factoryBean.setDataSource(dataSource);
-		factoryBean.setDatabaseType(DatabaseType.DB2.name());
-		factoryBean.setSelectClause("select p.*, a.name");
-		factoryBean.setFromClause("from PERSON as p JOIN ADDRESS as a on p.address_id = a.address_id");
-		factoryBean.setSortKey("p.name");
-		reader.setQueryProvider(factoryBean.getObject());
+		reader.setQueryProvider(pagingQueryProvider);
 		reader.setRowMapper((resultSet, i) -> {
 			Person person = new Person();
 			person.setId(resultSet.getInt(1));
 			person.setName(resultSet.getString(2));
 			Address address = new Address();
 			address.setId(resultSet.getInt(3));
-			address.setName(resultSet.getString(4));
 			person.setAddress(address);
 			return person;
 		});
@@ -84,7 +78,7 @@ public class MyJob {
 	public Step step() throws Exception {
 		return steps.get("step")
 				.<Person, Person>chunk(2)
-				.reader(itemReader(null))
+				.reader(itemReader(null, null))
 				.writer(itemWriter())
 				.build();
 	}
